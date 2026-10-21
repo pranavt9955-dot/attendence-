@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String          @id @default(uuid())
+  email        String          @unique
+  username     String          @unique
+  password     String
+  role         String          @default("STUDENT") // ADMIN or STUDENT
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  student      StudentProfile?
+  auditLogs    AuditLog[]
+}
+
+model StudentProfile {
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  fullName          String
+  profilePhoto      String?
+  dateOfBirth       String?            // YYYY-MM-DD
+  gender            String?            // Male, Female, Other
+  
+  admissionNumber   String             @unique
+  rollNumber        String
+  course            String             // e.g. B.Tech Computer Science
+  department        String             // e.g. School of Engineering
+  className         String             // e.g. Year 3 (or Grade 11)
+  section           String             // e.g. A, B, C
+  semester          String             // e.g. Semester 5
+  academicSession   String             // e.g. 2025-2026
+  
+  email             String
+  mobileNumber      String?
+  fatherName        String?
+  motherName        String?
+  guardianContact   String?
+  residentialAddress String?
+  admissionDate     String?            // YYYY-MM-DD
+  remarks           String?
+  status            String             @default("ACTIVE") // ACTIVE, ARCHIVED, DELETED
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  attendanceRecords AttendanceRecord[]
+
+  @@index([course, className, section])
+  @@index([status])
+}
+
+model AttendanceSession {
+  id              String             @id @default(uuid())
+  sessionDate     String             // YYYY-MM-DD
+  course          String
+  department      String
+  className       String
+  section         String
+  semester        String
+  academicSession String
+  subjectName     String
+  subjectCode     String
+  facultyName     String
+  periodNumber    String             // e.g. "1", "2", "3"
+  startTime       String?            // HH:MM
+  endTime         String?            // HH:MM
+  isLive          Boolean            @default(false)
+  status          String             @default("COMPLETED") // DRAFT, LIVE, COMPLETED, CLOSED
+  
+  createdById     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  
+  records         AttendanceRecord[]
+
+  @@unique([sessionDate, className, section, subjectCode, periodNumber], name: "unique_session_slot")
+  @@index([sessionDate])
+  @@index([course, className, section])
+}
+
+model AttendanceRecord {
+  id          String            @id @default(uuid())
+  sessionId   String
+  session     AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     StudentProfile    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  status      String            // PRESENT, ABSENT, LATE, LEAVE
+  remarks     String?
+  markedAt    DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([sessionId, studentId], name: "unique_student_session_record")
+  @@index([studentId])
+  @@index([status])
+}
+
+model Assignment {
+  id              String                 @id @default(uuid())
+  title           String
+  description     String
+  course          String
+  department      String
+  className       String
+  section         String                 // Specific section or "ALL"
+  semester        String
+  subjectName     String
+  subjectCode     String
+  teacherName     String
+  issueDate       String                 // YYYY-MM-DD
+  deadline        String                 // YYYY-MM-DDTHH:mm or YYYY-MM-DD
+  maxMarks        Float                  @default(100)
+  status          String                 @default("PUBLISHED") // DRAFT, PUBLISHED, ARCHIVED
+  
+  createdById     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  
+  attachments     AssignmentAttachment[]
+
+  @@index([course, className, section, subjectCode])
+  @@index([status])
+}
+
+model AssignmentAttachment {
+  id           String     @id @default(uuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  
+  fileName     String
+  fileUrl      String
+  fileType     String     // e.g. application/pdf, image/jpeg
+  fileSize     Int        // bytes
+  createdAt    DateTime   @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail   String?
+  action      String   // ATTENDANCE_CREATED, ATTENDANCE_EDITED, STUDENT_CREATED, STUDENT_DELETED, etc.
+  entityType  String   // Attendance, Student, Assignment
+  entityId    String?
+  details     String?  // JSON string or summary
+  createdAt   DateTime @default(now())
+
+  @@index([action])
+  @@index([createdAt])
+}
